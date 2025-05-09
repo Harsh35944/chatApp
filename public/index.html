@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat App</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        .auth-container {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+        }
+        .chat-container {
+            display: none;
+            flex: 1;
+        }
+        .user-list {
+            width: 250px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .user-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-item:hover {
+            background-color: #f5f5f5;
+        }
+        .user-item.active {
+            background-color: #e3f2fd;
+        }
+        .online-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #ccc;
+        }
+        .online-status.online {
+            background-color: #4caf50;
+        }
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #messages {
+            height: 400px;
+            border: 1px solid #ccc;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        .message.sent {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .message.received {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        #messageForm {
+            display: flex;
+            gap: 10px;
+        }
+        #messageInput {
+            flex-grow: 1;
+            padding: 5px;
+        }
+        button {
+            padding: 5px 15px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        .error {
+            color: red;
+            margin-top: 5px;
+        }
+        .search-container {
+            margin-bottom: 10px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 5px;
+        }
+        .chat-header {
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        .typing-indicator {
+            color: #666;
+            font-style: italic;
+            font-size: 0.9em;
+            margin: 5px 0;
+            height: 20px;
+        }
+        .typing-dots {
+            display: inline-block;
+            animation: typing 1s infinite;
+        }
+        @keyframes typing {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+        .message-status {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 5px;
+        }
+        .message-status.delivered {
+            color: #2196f3;
+        }
+        .message-status.read {
+            color: #4caf50;
+        }
+        .file-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .file-icon {
+            font-size: 24px;
+            color: #666;
+        }
+        .file-info {
+            flex: 1;
+        }
+        .file-name {
+            font-weight: bold;
+            word-break: break-all;
+        }
+        .file-size {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .upload-progress {
+            width: 100%;
+            height: 4px;
+            background: #eee;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #2196f3;
+            width: 0;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            position: absolute;
+            right: 0;
+            top: -20px;
+            font-size: 0.8em;
+            color: #666;
+        }
+        .upload-error {
+            color: #f44336;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .retry-button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        .retry-button:hover {
+            background: #d32f2f;
+        }
+        .file-preview {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .upload-button {
+            position: relative;
+            overflow: hidden;
+        }
+        .upload-button input[type="file"] {
+            position: absolute;
+            top: 0;
+            right: 0;
+            min-width: 100%;
+            min-height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .voice-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .play-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #2196f3;
+        }
+        .play-button:hover {
+            color: #1976d2;
+        }
+        .voice-waveform {
+            flex: 1;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        .waveform-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: #2196f3;
+            width: 0;
+            transition: width 0.1s linear;
+        }
+        .voice-duration {
+            font-size: 0.8em;
+            color: #666;
+            min-width: 60px;
+            text-align: right;
+        }
+        .record-button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .record-button:hover {
+            background: #d32f2f;
+        }
+        .record-button.recording {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .recording-timer {
+            font-size: 0.9em;
+            color: #f44336;
+            margin-left: 10px;
+        }
+        .message-reactions {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+        .reaction {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 6px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .reaction:hover {
+            background: #e0e0e0;
+        }
+        .reaction.active {
+            background: #e3f2fd;
+        }
+        .reaction-count {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .reaction-picker {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .emoji-button {
+            font-size: 1.2em;
+            padding: 5px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .emoji-button:hover {
+            background: #f0f0f0;
+        }
+        .like-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        .like-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 8px;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .like-button:hover {
+            background: #f5f5f5;
+        }
+        .like-button.active {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .like-button.dislike.active {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+        .emoji-picker {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            width: 300px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .emoji-categories {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .emoji-category {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .emoji-category:hover {
+            background: #f0f0f0;
+        }
+        .emoji-category.active {
+            background: #e3f2fd;
+        }
+        .emoji-search {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .emoji-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .emoji-item {
+            font-size: 1.2em;
+            padding: 5px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .emoji-item:hover {
+            background: #f0f0f0;
+        }
+        .emoji-button {
+            position: relative;
+        }
+        .notification-settings {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .notification-settings h3 {
+            margin: 0 0 10px 0;
+        }
+        .notification-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .notification-option label {
+            flex: 1;
+        }
+        .notification-toggle {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .notification-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .notification-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .notification-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        .notification-toggle input:checked + .notification-slider {
+            background-color: #2196f3;
+        }
+        .notification-toggle input:checked + .notification-slider:before {
+            transform: translateX(20px);
+        }
+        .notification-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .notification-button:hover {
+            background: #1976d2;
+        }
+        .notification-button.has-unread::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            background: #f44336;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .message-actions {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: none;
+            gap: 5px;
+        }
+        .message:hover .message-actions {
+            display: flex;
+        }
+        .message-action-button {
+            background: none;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            font-size: 1.2em;
+            color: #666;
+            border-radius: 3px;
+        }
+        .message-action-button:hover {
+            background: rgba(0, 0, 0, 0.1);
+            color: #2196f3;
+        }
+        .forward-menu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 300px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .forward-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .forward-menu-header h3 {
+            margin: 0;
+        }
+        .forward-menu-close {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #666;
+        }
+        .forward-menu-search {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .forward-menu-users {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 3px;
+        }
+        .forward-menu-user {
+            padding: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .forward-menu-user:hover {
+            background: #f5f5f5;
+        }
+        .forward-menu-user.selected {
+            background: #e3f2fd;
+        }
+        .forward-menu-footer {
+            margin-top: 15px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .forward-menu-footer button {
+            padding: 8px 15px;
+        }
+        .forward-menu-footer button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .forwarded-message {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+            padding: 5px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+        }
+        .forwarded-message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+        .forwarded-message-sender {
+            font-weight: bold;
+        }
+        .forwarded-message-time {
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+    <div id="authContainer" class="auth-container">
+        <h2>Authentication</h2>
+        <div>
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="register()">Register</button>
+            <button onclick="login()">Login</button>
+        </div>
+        <div id="authError" class="error"></div>
+    </div>
+
+    <div id="chatContainer" class="chat-container">
+        <div class="user-list">
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search users..." oninput="searchUsers(this.value)">
+            </div>
+            <div id="userList"></div>
+        </div>
+        <div class="chat-area">
+            <div class="chat-header">
+                <h3 id="currentChat">Select a user to start chatting</h3>
+            </div>
+            <div id="messages"></div>
+            <form id="messageForm" onsubmit="sendMessage(event)">
+                <input type="text" id="messageInput" placeholder="Type a message...">
+                <button type="button" class="upload-button">
+                    📎
+                    <input type="file" id="fileInput" onchange="handleFileSelect(event)">
+                </button>
+                <button type="button" class="record-button" id="recordButton" onclick="toggleRecording()">
+                    🎤 Record
+                </button>
+                <span id="recordingTimer" class="recording-timer" style="display: none"></span>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <button id="notificationButton" class="notification-button" onclick="toggleNotificationSettings()">🔔</button>
+    <div id="notificationSettings" class="notification-settings" style="display: none;">
+        <h3>Notification Settings</h3>
+        <div class="notification-option">
+            <label>Desktop Notifications</label>
+            <label class="notification-toggle">
+                <input type="checkbox" id="desktopNotifications" onchange="updateNotificationSettings()">
+                <span class="notification-slider"></span>
+            </label>
+        </div>
+        <div class="notification-option">
+            <label>Sound Alerts</label>
+            <label class="notification-toggle">
+                <input type="checkbox" id="soundAlerts" onchange="updateNotificationSettings()">
+                <span class="notification-slider"></span>
+            </label>
+        </div>
+        <div class="notification-option">
+            <label>Message Notifications</label>
+            <label class="notification-toggle">
+                <input type="checkbox" id="messageNotifications" onchange="updateNotificationSettings()">
+                <span class="notification-slider"></span>
+            </label>
+        </div>
+        <div class="notification-option">
+            <label>Reaction Notifications</label>
+            <label class="notification-toggle">
+                <input type="checkbox" id="reactionNotifications" onchange="updateNotificationSettings()">
+                <span class="notification-slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let currentRoom = '';
+        let token = '';
+        let currentUser = '';
+        let selectedUser = null;
+        let typingTimeout = null;
+        let messageMap = new Map(); // Store messages by ID for status updates
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+        let activeUploads = new Map();
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recordingStartTime = null;
+        let recordingTimer = null;
+        let audioContext = null;
+        let audioAnalyser = null;
+        let audioSource = null;
+        let isRecording = false;
+        const COMMON_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '👏', '🙏', '🔥', '🎉', '👎'];
+        const EMOJI_CATEGORIES = {
+            '😀': ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳'],
+            '❤️': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '💯', '💢', '💥', '💫', '💦', '💨', '🕳️', '💣', '💬', '👁️‍🗨️', '🗨️', '🗯️', '💭', '💤'],
+            '👋': ['👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '👍', '👎', '✊', '👊', '🤛', '🤜'],
+            '🐶': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺'],
+            '🍎': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑'],
+            '⚽': ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥊', '🥋', '⛳', '⛸️', '🎣', '🤿', '🎽', '🛹', '🛷'],
+            '🎨': ['🎨', '🎭', '🎪', '🎟️', '🎫', '🎗️', '🎖️', '🏆', '🏅', '🥇', '🥈', '🥉', '⚜️', '🔰', '🎯', '🎲', '🎮', '🎰', '🎳', '🎯', '🎱', '🎾', '🎳', '🎲'],
+            '🚗': ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🚚', '🚛', '🚜', '🛴', '🚲', '🛵', '🏍️', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠']
+        };
+        let notificationSettings = {
+            desktop: false,
+            sound: false,
+            messages: true,
+            reactions: true
+        };
+        let notificationSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3');
+        let unreadNotifications = 0;
+        let selectedMessageToForward = null;
+
+        // Request notification permission on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                notificationSettings.desktop = permission === 'granted';
+                document.getElementById('desktopNotifications').checked = notificationSettings.desktop;
+            }
+            
+            // Load saved settings
+            const savedSettings = localStorage.getItem('notificationSettings');
+            if (savedSettings) {
+                notificationSettings = JSON.parse(savedSettings);
+                document.getElementById('desktopNotifications').checked = notificationSettings.desktop;
+                document.getElementById('soundAlerts').checked = notificationSettings.sound;
+                document.getElementById('messageNotifications').checked = notificationSettings.messages;
+                document.getElementById('reactionNotifications').checked = notificationSettings.reactions;
+            }
+        });
+
+        function toggleNotificationSettings() {
+            const settings = document.getElementById('notificationSettings');
+            settings.style.display = settings.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateNotificationSettings() {
+            notificationSettings.desktop = document.getElementById('desktopNotifications').checked;
+            notificationSettings.sound = document.getElementById('soundAlerts').checked;
+            notificationSettings.messages = document.getElementById('messageNotifications').checked;
+            notificationSettings.reactions = document.getElementById('reactionNotifications').checked;
+            
+            localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+            
+            if (notificationSettings.desktop) {
+                Notification.requestPermission();
+            }
+        }
+
+        function showNotification(title, options = {}) {
+            if (!notificationSettings.desktop) return;
+
+            const notification = new Notification(title, {
+                icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+                badge: 'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+                ...options
+            });
+
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+            };
+
+            if (notificationSettings.sound) {
+                notificationSound.play();
+            }
+
+            unreadNotifications++;
+            updateNotificationBadge();
+        }
+
+        function updateNotificationBadge() {
+            const button = document.getElementById('notificationButton');
+            if (unreadNotifications > 0) {
+                button.classList.add('has-unread');
+            } else {
+                button.classList.remove('has-unread');
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('http://localhost:3000/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                
+                if (response.ok) {
+                    await login();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('authError').textContent = error.message;
+                }
+            } catch (error) {
+                document.getElementById('authError').textContent = 'Registration failed';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('http://localhost:3000/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    token = data.access_token;
+                    currentUser = username;
+                    initializeSocket();
+                    document.getElementById('authContainer').style.display = 'none';
+                    document.getElementById('chatContainer').style.display = 'flex';
+                } else {
+                    const error = await response.json();
+                    document.getElementById('authError').textContent = error.message;
+                }
+            } catch (error) {
+                document.getElementById('authError').textContent = 'Login failed';
+            }
+        }
+
+        function initializeSocket() {
+            socket = io('http://localhost:3000', {
+                auth: { token }
+            });
+
+            socket.on('connect_error', (error) => {
+                document.getElementById('authError').textContent = 'Connection failed: ' + error.message;
+                document.getElementById('authContainer').style.display = 'block';
+                document.getElementById('chatContainer').style.display = 'none';
+            });
+
+            socket.on('userList', (users) => {
+                const userList = document.getElementById('userList');
+                userList.innerHTML = '';
+                users.forEach(user => {
+                    if (user.username !== currentUser) {
+                        const userElement = document.createElement('div');
+                        userElement.className = `user-item ${selectedUser === user.username ? 'active' : ''}`;
+                        userElement.innerHTML = `
+                            <div class="online-status ${user.isOnline ? 'online' : ''}"></div>
+                            <div>${user.username}</div>
+                        `;
+                        userElement.onclick = () => selectUser(user.username);
+                        userList.appendChild(userElement);
+                    }
+                });
+            });
+
+            socket.on('newPrivateMessage', (message) => {
+                if (selectedUser === message.sender || selectedUser === message.receiver) {
+                    displayMessage(message);
+                } else if (notificationSettings.messages) {
+                    showNotification(`New message from ${message.sender}`, {
+                        body: message.content,
+                        tag: 'message'
+                    });
+                }
+            });
+
+            socket.on('privateMessages', (messages) => {
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML = '';
+                messages.forEach(message => displayMessage(message));
+            });
+
+            socket.on('searchResults', (users) => {
+                const userList = document.getElementById('userList');
+                userList.innerHTML = '';
+                users.forEach(user => {
+                    if (user.username !== currentUser) {
+                        const userElement = document.createElement('div');
+                        userElement.className = `user-item ${selectedUser === user.username ? 'active' : ''}`;
+                        userElement.innerHTML = `
+                            <div class="online-status ${user.isOnline ? 'online' : ''}"></div>
+                            <div>${user.username}</div>
+                        `;
+                        userElement.onclick = () => selectUser(user.username);
+                        userList.appendChild(userElement);
+                    }
+                });
+            });
+
+            socket.on('userTyping', ({ username }) => {
+                if (selectedUser === username) {
+                    showTypingIndicator(username);
+                }
+            });
+
+            socket.on('userStoppedTyping', ({ username }) => {
+                if (selectedUser === username) {
+                    hideTypingIndicator();
+                }
+            });
+
+            socket.on('messageDelivered', ({ messageId }) => {
+                updateMessageStatus(messageId, 'delivered');
+            });
+
+            socket.on('messageRead', ({ messageId, readAt }) => {
+                updateMessageStatus(messageId, 'read', readAt);
+            });
+
+            socket.on('messageReaction', ({ messageId, reactions, emoji, userId }) => {
+                const messageElement = messageMap.get(messageId);
+                if (messageElement) {
+                    const reactionsDiv = messageElement.querySelector('.message-reactions');
+                    reactionsDiv.innerHTML = '';
+                    
+                    // Group reactions by emoji
+                    const reactionCounts = reactions.reduce((acc, reaction) => {
+                        acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+                        return acc;
+                    }, {});
+
+                    Object.entries(reactionCounts).forEach(([emoji, count]) => {
+                        const reactionElement = document.createElement('div');
+                        reactionElement.className = `reaction ${reactions.some(r => r.emoji === emoji && r.userId === currentUser) ? 'active' : ''}`;
+                        reactionElement.innerHTML = `
+                            <span>${emoji}</span>
+                            <span class="reaction-count">${count}</span>
+                        `;
+                        reactionElement.onclick = () => {
+                            if (reactions.some(r => r.emoji === emoji && r.userId === currentUser)) {
+                                socket.emit('removeReaction', { messageId });
+                            } else {
+                                socket.emit('addReaction', { messageId, emoji });
+                            }
+                        };
+                        reactionsDiv.appendChild(reactionElement);
+                    });
+                }
+                
+                if (notificationSettings.reactions && userId !== currentUser) {
+                    showNotification(`New reaction from ${userId}`, {
+                        body: `${userId} reacted with ${emoji}`,
+                        tag: 'reaction'
+                    });
+                }
+            });
+
+            socket.on('messageLike', ({ messageId, likes, dislikes }) => {
+                const messageElement = messageMap.get(messageId);
+                if (messageElement) {
+                    const likeButton = messageElement.querySelector('.like-button:not(.dislike)');
+                    const dislikeButton = messageElement.querySelector('.like-button.dislike');
+
+                    likeButton.className = `like-button ${likes.includes(currentUser) ? 'active' : ''}`;
+                    likeButton.innerHTML = `👍 ${likes.length}`;
+
+                    dislikeButton.className = `like-button dislike ${dislikes.includes(currentUser) ? 'active' : ''}`;
+                    dislikeButton.innerHTML = `👎 ${dislikes.length}`;
+                }
+            });
+
+            socket.on('messageForwarded', (message) => {
+                if (selectedUser === message.sender || selectedUser === message.receiver) {
+                    displayMessage(message);
+                } else if (notificationSettings.messages) {
+                    showNotification(`Forwarded message from ${message.sender}`, {
+                        body: message.content,
+                        tag: 'message'
+                    });
+                }
+            });
+        }
+
+        function showTypingIndicator(username) {
+            let typingDiv = document.querySelector('.typing-indicator');
+            if (!typingDiv) {
+                typingDiv = document.createElement('div');
+                typingDiv.className = 'typing-indicator';
+                document.getElementById('messages').appendChild(typingDiv);
+            }
+            typingDiv.innerHTML = `${username} is typing<span class="typing-dots">...</span>`;
+        }
+
+        function hideTypingIndicator() {
+            const typingDiv = document.querySelector('.typing-indicator');
+            if (typingDiv) {
+                typingDiv.remove();
+            }
+        }
+
+        function handleTyping() {
+            if (!selectedUser) return;
+
+            // Clear existing timeout
+            if (typingTimeout) {
+                clearTimeout(typingTimeout);
+            }
+
+            // Emit typing event
+            socket.emit('typing', { receiver: selectedUser });
+
+            // Set timeout to stop typing
+            typingTimeout = setTimeout(() => {
+                socket.emit('stopTyping', { receiver: selectedUser });
+            }, 1000);
+        }
+
+        function selectUser(username) {
+            selectedUser = username;
+            document.getElementById('currentChat').textContent = `Chat with ${username}`;
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.toggle('active', item.querySelector('div:last-child').textContent === username);
+            });
+            socket.emit('getPrivateMessages', { otherUser: username });
+            hideTypingIndicator();
+            messageMap.clear(); // Clear message map when switching chats
+        }
+
+        function searchUsers(query) {
+            if (query.length > 0) {
+                socket.emit('searchUsers', query);
+            } else {
+                socket.emit('getPrivateMessages', { otherUser: selectedUser });
+            }
+        }
+
+        function updateMessageStatus(messageId, status, timestamp = null) {
+            const messageElement = messageMap.get(messageId);
+            if (messageElement) {
+                const statusElement = messageElement.querySelector('.message-status');
+                if (statusElement) {
+                    statusElement.className = `message-status ${status}`;
+                    statusElement.textContent = status === 'delivered' ? '✓✓' : '✓✓ Read';
+                    if (timestamp) {
+                        statusElement.title = `Read at ${new Date(timestamp).toLocaleTimeString()}`;
+                    }
+                }
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getFileIcon(fileType) {
+            if (fileType.startsWith('image/')) return '🖼️';
+            if (fileType.includes('pdf')) return '📄';
+            if (fileType.includes('word')) return '📝';
+            if (fileType.includes('excel') || fileType.includes('sheet')) return '📊';
+            return '📎';
+        }
+
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file || !selectedUser) return;
+
+            try {
+                // Start upload session
+                socket.emit('startFileUpload', {
+                    receiver: selectedUser,
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileSize: file.size,
+                    totalChunks: Math.ceil(file.size / CHUNK_SIZE)
+                });
+
+                // Wait for upload ID
+                const uploadId = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Upload start timeout'));
+                    }, 5000);
+
+                    socket.once('uploadStarted', ({ uploadId }) => {
+                        clearTimeout(timeout);
+                        resolve(uploadId);
+                    });
+
+                    socket.once('uploadError', ({ message }) => {
+                        clearTimeout(timeout);
+                        reject(new Error(message));
+                    });
+                });
+
+                // Create progress bar
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'upload-progress';
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                const progressText = document.createElement('div');
+                progressText.className = 'progress-text';
+                progressDiv.appendChild(progressBar);
+                progressDiv.appendChild(progressText);
+                document.getElementById('messages').appendChild(progressDiv);
+
+                // Store upload info
+                activeUploads.set(uploadId, {
+                    file,
+                    progressBar,
+                    progressText,
+                    progressDiv,
+                    retryCount: 0
+                });
+
+                // Start uploading chunks
+                await uploadChunks(uploadId, file);
+
+            } catch (error) {
+                console.error('File upload error:', error);
+                showUploadError(error.message);
+            }
+
+            // Clear file input
+            event.target.value = '';
+        }
+
+        async function uploadChunks(uploadId, file) {
+            const upload = activeUploads.get(uploadId);
+            if (!upload) return;
+
+            const { file: fileToUpload, progressBar, progressText, retryCount } = upload;
+            const totalChunks = Math.ceil(fileToUpload.size / CHUNK_SIZE);
+            let uploadedChunks = 0;
+
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, fileToUpload.size);
+                const chunk = fileToUpload.slice(start, end);
+
+                try {
+                    const chunkData = await readChunk(chunk);
+                    await uploadChunk(uploadId, chunkData, i, fileToUpload);
+                    uploadedChunks++;
+                    
+                    // Update progress
+                    const progress = (uploadedChunks / totalChunks) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${Math.round(progress)}%`;
+                } catch (error) {
+                    console.error(`Chunk ${i} upload failed:`, error);
+                    if (retryCount < 3) {
+                        upload.retryCount++;
+                        i--; // Retry this chunk
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
+                        continue;
+                    }
+                    throw new Error('Upload failed after retries');
+                }
+            }
+        }
+
+        function readChunk(chunk) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = e => reject(e);
+                reader.readAsDataURL(chunk);
+            });
+        }
+
+        function uploadChunk(uploadId, chunkData, chunkIndex, file) {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Chunk upload timeout'));
+                }, 10000);
+
+                socket.emit('uploadChunk', {
+                    uploadId,
+                    chunk: chunkData,
+                    chunkIndex,
+                    receiver: selectedUser,
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileSize: file.size
+                });
+
+                socket.once('chunkReceived', ({ uploadId: receivedId, chunkIndex: receivedIndex }) => {
+                    if (receivedId === uploadId && receivedIndex === chunkIndex) {
+                        clearTimeout(timeout);
+                        resolve();
+                    }
+                });
+
+                socket.once('uploadError', ({ uploadId: errorId, message }) => {
+                    if (errorId === uploadId) {
+                        clearTimeout(timeout);
+                        reject(new Error(message));
+                    }
+                });
+            });
+        }
+
+        function showUploadError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'upload-error';
+            errorDiv.textContent = message;
+
+            const retryButton = document.createElement('button');
+            retryButton.className = 'retry-button';
+            retryButton.textContent = 'Retry';
+            retryButton.onclick = () => {
+                errorDiv.remove();
+                document.getElementById('fileInput').click();
+            };
+
+            errorDiv.appendChild(retryButton);
+            document.getElementById('messages').appendChild(errorDiv);
+        }
+
+        function displayMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${message.sender === currentUser ? 'sent' : 'received'}`;
+            
+            // Add message actions
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+            
+            const forwardButton = document.createElement('button');
+            forwardButton.className = 'message-action-button';
+            forwardButton.innerHTML = '↪️';
+            forwardButton.title = 'Forward message';
+            forwardButton.onclick = (e) => {
+                e.stopPropagation();
+                showForwardMenu(message);
+            };
+            actionsDiv.appendChild(forwardButton);
+            messageElement.appendChild(actionsDiv);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.textContent = `${message.sender}: ${message.content}`;
+            messageElement.appendChild(contentDiv);
+
+            // Display forwarded message if exists
+            if (message.forwardedFrom) {
+                const forwardedDiv = document.createElement('div');
+                forwardedDiv.className = 'forwarded-message';
+                forwardedDiv.innerHTML = `
+                    <div class="forwarded-message-header">
+                        <span class="forwarded-message-sender">Forwarded from ${message.forwardedFrom.sender}</span>
+                        <span class="forwarded-message-time">${new Date(message.forwardedFrom.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="forwarded-message-content">${message.forwardedFrom.content}</div>
+                `;
+                messageElement.appendChild(forwardedDiv);
+            }
+
+            // Add reaction picker
+            const reactionButton = document.createElement('button');
+            reactionButton.className = 'emoji-button';
+            reactionButton.innerHTML = '😀';
+            reactionButton.onclick = (e) => {
+                e.stopPropagation();
+                const picker = createEmojiPicker(message._id);
+                picker.dataset.messageId = message._id;
+
+                // Position picker
+                const rect = reactionButton.getBoundingClientRect();
+                picker.style.left = `${rect.left}px`;
+                picker.style.bottom = `${window.innerHeight - rect.top}px`;
+
+                // Close picker when clicking outside
+                const closePicker = (e) => {
+                    if (!picker.contains(e.target) && e.target !== reactionButton) {
+                        picker.remove();
+                        document.removeEventListener('click', closePicker);
+                    }
+                };
+                document.addEventListener('click', closePicker);
+
+                document.body.appendChild(picker);
+            };
+            messageElement.appendChild(reactionButton);
+
+            // Display reactions
+            const reactionsDiv = document.createElement('div');
+            reactionsDiv.className = 'message-reactions';
+            message.reactions.forEach(reaction => {
+                const reactionElement = document.createElement('div');
+                reactionElement.className = `reaction ${reaction.userId === currentUser ? 'active' : ''}`;
+                reactionElement.innerHTML = `
+                    <span>${reaction.emoji}</span>
+                    <span class="reaction-count">1</span>
+                `;
+                reactionElement.onclick = () => {
+                    if (reaction.userId === currentUser) {
+                        socket.emit('removeReaction', { messageId: message._id });
+                    }
+                };
+                reactionsDiv.appendChild(reactionElement);
+            });
+            messageElement.appendChild(reactionsDiv);
+
+            // Add like/dislike buttons
+            const likeButtonsDiv = document.createElement('div');
+            likeButtonsDiv.className = 'like-buttons';
+
+            const likeButton = document.createElement('button');
+            likeButton.className = `like-button ${message.likes.includes(currentUser) ? 'active' : ''}`;
+            likeButton.innerHTML = `👍 ${message.likes.length}`;
+            likeButton.onclick = () => socket.emit('toggleLike', { messageId: message._id });
+
+            const dislikeButton = document.createElement('button');
+            dislikeButton.className = `like-button dislike ${message.dislikes.includes(currentUser) ? 'active' : ''}`;
+            dislikeButton.innerHTML = `👎 ${message.dislikes.length}`;
+            dislikeButton.onclick = () => socket.emit('toggleDislike', { messageId: message._id });
+
+            likeButtonsDiv.appendChild(likeButton);
+            likeButtonsDiv.appendChild(dislikeButton);
+            messageElement.appendChild(likeButtonsDiv);
+
+            // Handle file attachments
+            if (message.fileUrl) {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'file-message';
+                
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'file-icon';
+                iconSpan.textContent = getFileIcon(message.fileType);
+                fileDiv.appendChild(iconSpan);
+
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info';
+                
+                const fileName = document.createElement('div');
+                fileName.className = 'file-name';
+                fileName.textContent = message.fileName;
+                fileInfo.appendChild(fileName);
+
+                const fileSize = document.createElement('div');
+                fileSize.className = 'file-size';
+                fileSize.textContent = formatFileSize(message.fileSize);
+                fileInfo.appendChild(fileSize);
+
+                fileDiv.appendChild(fileInfo);
+
+                // Add click handler to download file
+                fileDiv.style.cursor = 'pointer';
+                fileDiv.onclick = () => window.open(message.fileUrl, '_blank');
+
+                // Add image preview if it's an image
+                if (message.fileType.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.src = message.fileUrl;
+                    img.className = 'file-preview';
+                    fileDiv.appendChild(img);
+                }
+
+                messageElement.appendChild(fileDiv);
+            }
+
+            // Handle voice messages
+            if (message.isVoiceMessage) {
+                const voiceDiv = document.createElement('div');
+                voiceDiv.className = 'voice-message';
+                
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'voice-controls';
+
+                const playButton = document.createElement('button');
+                playButton.className = 'play-button';
+                playButton.innerHTML = '▶️';
+                playButton.onclick = () => playVoiceMessage(message.fileUrl, playButton);
+
+                const waveformDiv = document.createElement('div');
+                waveformDiv.className = 'voice-waveform';
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'waveform-progress';
+                waveformDiv.appendChild(progressDiv);
+
+                const durationDiv = document.createElement('div');
+                durationDiv.className = 'voice-duration';
+                durationDiv.textContent = formatDuration(message.duration);
+
+                controlsDiv.appendChild(playButton);
+                controlsDiv.appendChild(waveformDiv);
+                controlsDiv.appendChild(durationDiv);
+                voiceDiv.appendChild(controlsDiv);
+                messageElement.appendChild(voiceDiv);
+            }
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'message-status';
+            if (message.sender === currentUser) {
+                if (message.isRead) {
+                    statusDiv.className = 'message-status read';
+                    statusDiv.textContent = '✓✓ Read';
+                    statusDiv.title = `Read at ${new Date(message.readAt).toLocaleTimeString()}`;
+                } else if (message.isDelivered) {
+                    statusDiv.className = 'message-status delivered';
+                    statusDiv.textContent = '✓✓';
+                } else {
+                    statusDiv.textContent = '✓';
+                }
+            }
+            messageElement.appendChild(statusDiv);
+
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            messageMap.set(message._id, messageElement);
+
+            if (message.receiver === currentUser && !message.isRead) {
+                socket.emit('markMessageAsRead', { messageId: message._id });
+                unreadNotifications = Math.max(0, unreadNotifications - 1);
+                updateNotificationBadge();
+            }
+        }
+
+        function sendMessage(event) {
+            event.preventDefault();
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value;
+            
+            if (message && selectedUser) {
+                socket.emit('sendPrivateMessage', {
+                    receiver: selectedUser,
+                    content: message
+                });
+                messageInput.value = '';
+                hideTypingIndicator();
+            }
+        }
+
+        // Add input event listener for typing indicator
+        document.getElementById('messageInput').addEventListener('input', handleTyping);
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                isRecording = true;
+
+                // Update UI
+                const recordButton = document.getElementById('recordButton');
+                recordButton.classList.add('recording');
+                recordButton.innerHTML = '⏹️ Stop';
+                document.getElementById('recordingTimer').style.display = 'inline';
+
+                // Start timer
+                recordingStartTime = Date.now();
+                updateRecordingTimer();
+
+                // Set up audio visualization
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioAnalyser = audioContext.createAnalyser();
+                audioSource = audioContext.createMediaStreamSource(stream);
+                audioSource.connect(audioAnalyser);
+
+                // Handle recording data
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const duration = (Date.now() - recordingStartTime) / 1000;
+                    
+                    // Create a temporary audio element to get the actual duration
+                    const audio = new Audio(URL.createObjectURL(audioBlob));
+                    await new Promise(resolve => {
+                        audio.addEventListener('loadedmetadata', resolve);
+                    });
+                    const actualDuration = audio.duration;
+
+                    // Upload the voice message
+                    await uploadVoiceMessage(audioBlob, actualDuration);
+
+                    // Clean up
+                    stream.getTracks().forEach(track => track.stop());
+                    if (audioContext) {
+                        audioContext.close();
+                    }
+                };
+
+                mediaRecorder.start();
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                alert('Could not start recording. Please check microphone permissions.');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+
+                // Update UI
+                const recordButton = document.getElementById('recordButton');
+                recordButton.classList.remove('recording');
+                recordButton.innerHTML = '🎤 Record';
+                document.getElementById('recordingTimer').style.display = 'none';
+                clearInterval(recordingTimer);
+            }
+        }
+
+        function updateRecordingTimer() {
+            const timerElement = document.getElementById('recordingTimer');
+            recordingTimer = setInterval(() => {
+                const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const minutes = Math.floor(duration / 60);
+                const seconds = duration % 60;
+                timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        async function uploadVoiceMessage(audioBlob, duration) {
+            try {
+                // Start upload session
+                socket.emit('startFileUpload', {
+                    receiver: selectedUser,
+                    fileName: `voice-message-${Date.now()}.webm`,
+                    fileType: 'audio/webm',
+                    fileSize: audioBlob.size,
+                    totalChunks: Math.ceil(audioBlob.size / CHUNK_SIZE),
+                    isVoiceMessage: true,
+                    duration: duration
+                });
+
+                // Wait for upload ID
+                const uploadId = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Upload start timeout'));
+                    }, 5000);
+
+                    socket.once('uploadStarted', ({ uploadId }) => {
+                        clearTimeout(timeout);
+                        resolve(uploadId);
+                    });
+
+                    socket.once('uploadError', ({ message }) => {
+                        clearTimeout(timeout);
+                        reject(new Error(message));
+                    });
+                });
+
+                // Create progress bar
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'upload-progress';
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                const progressText = document.createElement('div');
+                progressText.className = 'progress-text';
+                progressDiv.appendChild(progressBar);
+                progressDiv.appendChild(progressText);
+                document.getElementById('messages').appendChild(progressDiv);
+
+                // Store upload info
+                activeUploads.set(uploadId, {
+                    file: audioBlob,
+                    progressBar,
+                    progressText,
+                    progressDiv,
+                    retryCount: 0
+                });
+
+                // Start uploading chunks
+                await uploadChunks(uploadId, audioBlob);
+
+            } catch (error) {
+                console.error('Voice message upload error:', error);
+                showUploadError(error.message);
+            }
+        }
+
+        function formatDuration(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        function playVoiceMessage(url, playButton) {
+            const audio = new Audio(url);
+            const waveform = playButton.parentElement.querySelector('.waveform-progress');
+            
+            playButton.innerHTML = '⏸️';
+            audio.play();
+
+            audio.ontimeupdate = () => {
+                const progress = (audio.currentTime / audio.duration) * 100;
+                waveform.style.width = `${progress}%`;
+            };
+
+            audio.onended = () => {
+                playButton.innerHTML = '▶️';
+                waveform.style.width = '0';
+            };
+
+            audio.onpause = () => {
+                playButton.innerHTML = '▶️';
+            };
+
+            playButton.onclick = () => {
+                if (audio.paused) {
+                    audio.play();
+                    playButton.innerHTML = '⏸️';
+                } else {
+                    audio.pause();
+                    playButton.innerHTML = '▶️';
+                }
+            };
+        }
+
+        function createEmojiPicker(messageId) {
+            const picker = document.createElement('div');
+            picker.className = 'emoji-picker';
+
+            // Create category tabs
+            const categories = document.createElement('div');
+            categories.className = 'emoji-categories';
+            Object.keys(EMOJI_CATEGORIES).forEach(category => {
+                const categoryBtn = document.createElement('div');
+                categoryBtn.className = 'emoji-category';
+                categoryBtn.textContent = category;
+                categoryBtn.onclick = () => showEmojiCategory(picker, category);
+                categories.appendChild(categoryBtn);
+            });
+            picker.appendChild(categories);
+
+            // Create search input
+            const search = document.createElement('input');
+            search.className = 'emoji-search';
+            search.placeholder = 'Search emojis...';
+            search.oninput = (e) => searchEmojis(picker, e.target.value);
+            picker.appendChild(search);
+
+            // Create emoji grid
+            const grid = document.createElement('div');
+            grid.className = 'emoji-grid';
+            picker.appendChild(grid);
+
+            // Show first category by default
+            showEmojiCategory(picker, Object.keys(EMOJI_CATEGORIES)[0]);
+
+            return picker;
+        }
+
+        function showEmojiCategory(picker, category) {
+            const grid = picker.querySelector('.emoji-grid');
+            grid.innerHTML = '';
+            
+            // Update active category
+            picker.querySelectorAll('.emoji-category').forEach(cat => {
+                cat.classList.toggle('active', cat.textContent === category);
+            });
+
+            EMOJI_CATEGORIES[category].forEach(emoji => {
+                const emojiBtn = document.createElement('div');
+                emojiBtn.className = 'emoji-item';
+                emojiBtn.textContent = emoji;
+                emojiBtn.onclick = () => {
+                    const messageId = picker.dataset.messageId;
+                    socket.emit('addReaction', { messageId, emoji });
+                    picker.remove();
+                };
+                grid.appendChild(emojiBtn);
+            });
+        }
+
+        function searchEmojis(picker, query) {
+            const grid = picker.querySelector('.emoji-grid');
+            grid.innerHTML = '';
+            
+            const allEmojis = Object.values(EMOJI_CATEGORIES).flat();
+            const filteredEmojis = allEmojis.filter(emoji => 
+                emoji.includes(query) || 
+                emoji.codePointAt(0).toString(16).includes(query)
+            );
+
+            filteredEmojis.forEach(emoji => {
+                const emojiBtn = document.createElement('div');
+                emojiBtn.className = 'emoji-item';
+                emojiBtn.textContent = emoji;
+                emojiBtn.onclick = () => {
+                    const messageId = picker.dataset.messageId;
+                    socket.emit('addReaction', { messageId, emoji });
+                    picker.remove();
+                };
+                grid.appendChild(emojiBtn);
+            });
+        }
+
+        function showForwardMenu(message) {
+            selectedMessageToForward = message;
+            
+            const menu = document.createElement('div');
+            menu.className = 'forward-menu';
+            menu.innerHTML = `
+                <div class="forward-menu-header">
+                    <h3>Forward Message</h3>
+                    <button class="forward-menu-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                </div>
+                <input type="text" class="forward-menu-search" placeholder="Search users..." oninput="filterForwardUsers(this.value)">
+                <div class="forward-menu-users"></div>
+                <div class="forward-menu-footer">
+                    <button onclick="this.parentElement.parentElement.remove()">Cancel</button>
+                    <button onclick="forwardMessage()" disabled>Forward</button>
+                </div>
+            `;
+
+            document.body.appendChild(menu);
+            loadForwardUsers();
+        }
+
+        function loadForwardUsers() {
+            const usersContainer = document.querySelector('.forward-menu-users');
+            usersContainer.innerHTML = '';
+            
+            // Get all users except current user
+            const users = Array.from(document.querySelectorAll('.user-item'))
+                .map(item => item.querySelector('div:last-child').textContent)
+                .filter(username => username !== currentUser);
+
+            users.forEach(username => {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'forward-menu-user';
+                userDiv.innerHTML = `
+                    <div class="online-status ${isUserOnline(username) ? 'online' : ''}"></div>
+                    <div>${username}</div>
+                `;
+                userDiv.onclick = () => toggleUserSelection(userDiv);
+                usersContainer.appendChild(userDiv);
+            });
+        }
+
+        function filterForwardUsers(query) {
+            const users = document.querySelectorAll('.forward-menu-user');
+            users.forEach(user => {
+                const username = user.querySelector('div:last-child').textContent;
+                user.style.display = username.toLowerCase().includes(query.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+
+        function toggleUserSelection(userDiv) {
+            userDiv.classList.toggle('selected');
+            updateForwardButton();
+        }
+
+        function updateForwardButton() {
+            const selectedUsers = document.querySelectorAll('.forward-menu-user.selected');
+            const forwardButton = document.querySelector('.forward-menu-footer button:last-child');
+            forwardButton.disabled = selectedUsers.length === 0;
+        }
+
+        function forwardMessage() {
+            if (!selectedMessageToForward) return;
+
+            const selectedUsers = Array.from(document.querySelectorAll('.forward-menu-user.selected'))
+                .map(user => user.querySelector('div:last-child').textContent);
+
+            selectedUsers.forEach(receiver => {
+                socket.emit('forwardMessage', {
+                    messageId: selectedMessageToForward._id,
+                    receiver: receiver,
+                    forwardedFrom: {
+                        sender: selectedMessageToForward.sender,
+                        content: selectedMessageToForward.content,
+                        timestamp: selectedMessageToForward.timestamp
+                    }
+                });
+            });
+
+            document.querySelector('.forward-menu').remove();
+            selectedMessageToForward = null;
+        }
+
+        function isUserOnline(username) {
+            const userItem = Array.from(document.querySelectorAll('.user-item'))
+                .find(item => item.querySelector('div:last-child').textContent === username);
+            return userItem?.querySelector('.online-status')?.classList.contains('online');
+        }
+    </script>
+</body>
+</html> 
